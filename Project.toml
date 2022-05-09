@@ -1,0 +1,6 @@
+name = "RemoteChannel_MPI"
+uuid = "a266ee27-82b6-4f16-8ad1-7571abaf7137"
+version = "0.0.0"
+authors = ["Charles Colley <ccolley@purdue.edu>"]
+[deps]
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
