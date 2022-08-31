@@ -133,13 +133,35 @@ function gather(my_data::T,communication::C) where {T,C <: gather_comm}
 end
 
 
+function gather_profiled(data_seed::seeded_data,communication::C) where {C <: gather_comm}
+
+    seed!(data_seed.seed)
+    data_gen_start_t = time_ns()
+    data = rand(Float64,data_seed.n,data_seed.n) 
+    data_gen_t = Float64(time_ns() - data_gen_start_t)*1e-9
+
+    return gather_profiled(data,communication)..., data_gen_t
+end
+
 function gather_profiled(my_data,communication::C) where {C <: gather_comm}
 
+    alloc_start_time = time_ns()
     all_data = Vector{Matrix{Float64}}(undef,1)
     take_timings = Vector{Float64}(undef,length(communication.receiving_from))
     all_data[1] = my_data
-    start_time = time_ns()
+    alloc_t = Float64(time_ns() - alloc_start_time)*1e-9
 
+    return gather_profiled!(my_data,all_data,take_timings,communication)..., alloc_t
+
+end
+
+function gather_profiled!(my_data,all_data,take_timings,communication::C) where {C <: gather_comm}
+
+    #all_data = Vector{Matrix{Float64}}(undef,1)
+    #TODO: make comm type take buffer length
+    #take_timings = Vector{Float64}(undef,length(communication.receiving_from))
+    all_data[1] = my_data
+    start_time = time_ns()
     for (i,channel) in enumerate(reverse(communication.receiving_from))
                    # communication patterns come from the inverse of the broadcast code, 
                    # so receiving channels need to be reverse.  
@@ -156,9 +178,10 @@ function gather_profiled(my_data,communication::C) where {C <: gather_comm}
         put!(communication.sending_to,all_data)
         put_time = Float64(time_ns() - put_start_time)*1e-9
     else 
-        put_time = -1.0
+        put_time = 0.0
     end
+
     internal_time = Float64(time_ns() - start_time)*1e-9
-    return all_data, internal_time, take_timings, put_time 
+    return all_data, internal_time, put_time, take_timings
 
 end

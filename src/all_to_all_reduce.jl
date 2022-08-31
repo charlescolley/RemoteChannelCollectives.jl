@@ -119,13 +119,11 @@ end
 function all_to_all_reduce(reduction_f,my_data,communication::all_to_all_reduce_comm{T}) where T
 
     for (send_channel,take_channel) in zip(communication.all_reduce_sending_to,communication.all_reduce_receiving_from)
-
+    #TODO:                                               change this to just sending_to, check other 
         put!(send_channel,my_data)
         their_data =  take!(take_channel)
         my_data = reduction_f(my_data,their_data)
     end 
-
-    #println(batch_reduce_receiving_from, batch_reduce_sending_to, bcast_receiving_from, bcast_sending_to)
 
     if communication.batch_reduce_receiving_from !== nothing 
         for channel in communication.batch_reduce_receiving_from
@@ -149,4 +147,102 @@ function all_to_all_reduce(reduction_f,my_data,communication::all_to_all_reduce_
     end
 
     return my_data
+end 
+
+function all_to_all_reduce_profiled(data_seed::seeded_data,communication::all_to_all_reduce_comm{T}) where T
+
+    seed!(data_seed.seed)
+    data_gen_start_t = time_ns()
+    my_data = rand(Float64,data_seed.n,data_seed.n) 
+    reduction_f = (X,Y)-> X# making reduction_f minimal to focus on measuring communication.
+    data_gen_t = Float64(time_ns() - data_gen_start_t)*1e-9
+
+    return all_to_all_reduce_profiled(reduction_f,my_data,communication)..., data_gen_t
+end 
+
+function all_to_all_reduce_profiled(reduction_f,my_data,communication::all_to_all_reduce_comm{T}) where T
+
+    alloc_start_t = time_ns()
+    #loop_i
+    L1 = min(length(communication.all_reduce_sending_to),length(communication.all_reduce_receiving_from))
+    L2 = communication.batch_reduce_receiving_from !== nothing ?  length(communication.batch_reduce_receiving_from) : 0 
+    I1 = communication.batch_reduce_sending_to !== nothing ? 1 : 0  
+    I2 = communication.bcast_receiving_from !== nothing ? 1 : 0
+    I3 = communication.bcast_sending_to !== nothing ? length(communication.bcast_sending_to) : 0
+    #If_i 
+
+    reduction_timings = zeros(Float64,L1 + L2)
+    put_timings = zeros(Float64,L1 + I1 + I3)
+    take_timings =  zeros(Float64,L1+ L2 + I2)
+
+    alloc_t = Float64(time_ns() - alloc_start_t)*1e-9
+
+
+    return all_to_all_reduce_profiled!(reduction_f,my_data,put_timings,take_timings,reduction_timings,communication)..., alloc_t
+
+end
+
+function all_to_all_reduce_profiled!(reduction_f,my_data,put_timings,take_timings,reduction_timings,communication::all_to_all_reduce_comm{T}) where T
+
+    internal_start_t = time_ns()
+
+    take_idx = 1
+    put_idx = 1
+    reduction_idx = 1
+
+    for (send_channel,take_channel) in zip(communication.all_reduce_sending_to,communication.all_reduce_receiving_from)
+
+        put_start_t = time_ns()
+        put!(send_channel,my_data)
+        put_timings[put_idx] = Float64(time_ns() - put_start_t)*1e-9
+        put_idx += 1
+
+        take_start_t = time_ns()
+        their_data = take!(take_channel)
+        take_timings[take_idx] = Float64(time_ns() - take_start_t)*1e-9
+        take_idx += 1
+
+        reduction_start_t = time_ns()
+        my_data = reduction_f(my_data,their_data)
+        reduction_timings[reduction_idx] = Float64(time_ns() - reduction_start_t)*1e-9
+        reduction_idx += 1
+    end 
+
+    if communication.batch_reduce_receiving_from !== nothing 
+        for channel in communication.batch_reduce_receiving_from
+            take_start_t = time_ns()
+            their_data = take!(channel)
+            take_timings[take_idx] = Float64(time_ns() - take_start_t)*1e-9
+            take_idx += 1
+
+            reduction_start_t = time_ns()
+            my_data = reduction_f(my_data,their_data)
+            reduction_timings[reduction_idx] = Float64(time_ns() - reduction_start_t)*1e-9
+            reduction_idx += 1
+        end 
+    end 
+
+    if communication.batch_reduce_sending_to !== nothing 
+        put_start_t = time_ns()
+        put!(communication.batch_reduce_sending_to,my_data)
+        put_timings[put_idx] = Float64(time_ns() - put_start_t)*1e-9
+        put_idx += 1
+    end 
+
+    if communication.bcast_receiving_from !== nothing 
+        take_start_t = time_ns()
+        my_data = take!(communication.bcast_receiving_from)
+        take_timings[take_idx] = Float64(time_ns() - take_start_t)*1e-9
+        take_idx += 1
+    end 
+
+    for channel in communication.bcast_sending_to
+        put_start_t = time_ns()
+        put!(channel,my_data)
+        put_timings[put_idx] = Float64(time_ns() - put_start_t)*1e-9
+        put_idx += 1
+    end
+
+    internal_timing = Float64(time_ns() - internal_start_t)*1e-9
+    return my_data,  internal_timing, put_timings, take_timings, reduction_timings
 end 

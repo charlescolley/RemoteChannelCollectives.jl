@@ -126,8 +126,9 @@
 
             reduction_f = (x,y) -> x + y 
             reduced_data = all_to_all_reduce(reduction_f,my_data,proc_communication)
+            profiled_reduced_data = all_to_all_reduce_profiled(reduction_f,my_data,proc_communication)
 
-            return reduced_data       
+            return reduced_data, profiled_reduced_data[1]       
         end
 
 
@@ -141,12 +142,18 @@
         end
 
         all_vals = [] 
+        profiled_all_vals = []
+
         for future in futures 
-            push!(all_vals,fetch(future))
+            data, profiled_data = fetch(future)
+            push!(all_vals,data)
+            push!(profiled_all_vals,profiled_data)
         end 
 
-        @test sum(test_vals) == all_vals[1]
-        @test all([v == all_vals[1] for v in all_vals])
+        for vals in [all_vals,profiled_all_vals]
+            @test sum(test_vals) == vals[1]
+            @test all([v == vals[1] for v in vals])
+        end
         
     end
     
@@ -169,9 +176,9 @@
                                             # expecting length(pids) - 1 data points  
 
             data_for_me = personalized_all_to_all(all_data,comm)
-            data_for_me_profiled,_,_,_ = personalized_all_to_all_profiled(all_data,comm)
-        
-            return data_for_me, data_for_me_profiled
+            data_for_me_profiled = personalized_all_to_all_profiled(all_data,comm)
+
+            return data_for_me, data_for_me_profiled[1]
         
         end 
         

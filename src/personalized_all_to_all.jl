@@ -1,5 +1,6 @@
 struct personalized_all_to_all_comm{T} <: Communication
-    sending_to::Vector{Tuple{Int,RemoteChannel{Channel{Tuple{Int,T}}}}}
+    sending_to::Vector{Tuple{Int,RemoteChannel{Channel{Tuple{Int,T}}}}} 
+    #TODO: make Int a Uint, there'll never be negative indices. 
     my_channel::RemoteChannel{Channel{Tuple{Int,T}}}
     my_idx::Int
 end
@@ -52,7 +53,7 @@ function personalized_all_to_all_communication_PoWOT!(pids,sending_to,process_ch
 
 
     for i = 1:length(pids)
-        sending_to[i] = Vector{Tuple{Int,RemoteChannel{Channel{Tuple{Int,T}}}}}(undef,length(pids)-1)
+        #sending_to[i] = Vector{Tuple{Int,RemoteChannel{Channel{Tuple{Int,T}}}}}(undef,length(pids)-1)
         for j = 1:(length(pids)-1)
             sending_idx = ((i - 1) ⊻ j) + 1
             sending_to[i][j] = (sending_idx,process_channels[sending_idx])
@@ -66,8 +67,6 @@ function personalized_all_to_all(all_data::Vector{T},communication::C) where {T,
 
     all_received_data = Vector{T}(undef,length(communication.sending_to)+1)
     all_received_data[communication.my_idx] = all_data[communication.my_idx]
-
-
 
     personalized_all_to_all!(all_data::Vector{T},all_received_data,communication::C)
 
@@ -94,16 +93,32 @@ function personalized_all_to_all!(all_data::Vector{T},all_received_data,communic
     end 
 end
 
+
+function personalized_all_to_all_profiled(data_seed::seeded_data,communication::C) where {C <: personalized_all_to_all_comm} 
+
+    seed!(data_seed.seed)
+    data_gen_start_t = time_ns()
+    all_data = Vector{Matrix{Float64}}(undef,length(communication.sending_to)+1)
+    for i=1:(length(communication.sending_to) + 1)
+        all_data[i] = rand(Float64,data_seed.n,data_seed.n) 
+    end
+    data_gen_t = Float64(time_ns() - data_gen_start_t)*1e-9
+
+    return personalized_all_to_all_profiled(all_data,communication)..., data_gen_t
+
+end
+
 function personalized_all_to_all_profiled(all_data::Vector{T},communication::C) where {T,C <: personalized_all_to_all_comm} 
 
+    alloc_start_time = time_ns()
     put_timings = Vector{Float64}(undef,length(communication.sending_to))
     take_timings = Vector{Float64}(undef,length(communication.sending_to))
     all_received_data = Vector{T}(undef,length(communication.sending_to)+1)
     all_received_data[communication.my_idx] = all_data[communication.my_idx]
+    alloc_t = Float64(time_ns() - alloc_start_time)*1e-9
+
+    return personalized_all_to_all_profiled!(all_data,all_received_data,put_timings,take_timings,communication)..., alloc_t
     
-    internal_timing = personalized_all_to_all_profiled!(all_data,all_received_data,put_timings,take_timings,communication)
- 
-    return all_received_data, internal_timing, put_timings, take_timings
 end
 
 function personalized_all_to_all_profiled!(all_data::Vector{T},data_for_me::Vector{T},
@@ -128,6 +143,8 @@ function personalized_all_to_all_profiled!(all_data::Vector{T},data_for_me::Vect
         data_taken += 1 
     end 
 
-    return Float64(time_ns() - start_time)*1e-9
+    internal_timing = Float64(time_ns() - start_time)*1e-9
+    return data_for_me, internal_timing, put_timings, take_timings
+
 end
 

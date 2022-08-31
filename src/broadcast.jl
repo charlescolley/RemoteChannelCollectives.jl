@@ -167,19 +167,43 @@ function broadcast(data,communication::C) where {C <: broadcast_comm}
 
 end
 
+#
+#    Profiling subroutines 
+#
+
+#= run:
+   @everywhere using Random.seed!
+=#
+function broadcast_profiled(data_seed::seeded_data,communication::C) where {C <: broadcast_comm}
+
+    seed!(data_seed.seed)
+    data_gen_start_t = time_ns()
+    data = rand(Float64,data_seed.n,data_seed.n) 
+    data_gen_t = Float64(time_ns() - data_gen_start_t)*1e-9
+
+    return broadcast_profiled(data,communication)..., data_gen_t
+end
+
 function broadcast_profiled(data,communication::C) where {C <: broadcast_comm}
 
-
+    alloc_start_t = time_ns()
     put_timings = Vector{Float64}(undef,length(communication.sending_to))
+    alloc_t = Float64(time_ns() - alloc_start_t)*1e-9
+
+    return broadcast_profiled!(data,communication,put_timings)..., alloc_t
+ 
+end
+
+function broadcast_profiled!(data,communication::C,put_timings) where {C <: broadcast_comm}
 
     start_time = time_ns()
 
     if communication.receiving_from === nothing 
-        take_time = -1
+        take_time = 0.0
     else
         take_start_time = time_ns()
         data = take!(communication.receiving_from)
-        take_time = time_ns() - take_start_time
+        take_time = Float64(time_ns() - take_start_time)*1e-9
     end
 
     for (i,channel) in enumerate(communication.sending_to)
@@ -188,8 +212,8 @@ function broadcast_profiled(data,communication::C) where {C <: broadcast_comm}
         put_timings[i]= Float64(time_ns() - put_start_time)*1e-9
     end
 
-    internal_time = time_ns() - start_time
+    internal_time =  Float64(time_ns() - start_time)*1e-9
 
-    return data, Float64(internal_time)*1e-9, Float64(take_time)*1e-9, put_timings
+    return data, internal_time, put_timings, take_time
 
 end
