@@ -153,7 +153,7 @@ function broadcast_PowOT_communication(pids,channel_type::T) where T
 end
 
 
-function broadcast(data,communication::C) where {C <: broadcast_comm}
+function Base.broadcast(data,communication::C) where {C <: broadcast_comm}
 
     if communication.receiving_from !== nothing 
         data = take!(communication.receiving_from)
