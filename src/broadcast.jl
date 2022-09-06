@@ -6,26 +6,30 @@ end
 
 function broadcast_communication(pids,bcast_pididx,channel_type::T) where T
 
+    pid_indices = collect(1:length(pids))
     if bcast_pididx != 1 
-        temp = pids[1]
+        temp = copy(pid_indices[1])
+        pid_indices[1] = pid_indices[bcast_pididx]
+        pid_indices[bcast_pididx] = temp
+
+        temp = copy(pids[1])
         pids[1] = pids[bcast_pididx]
         pids[bcast_pididx] = temp
     end
 
-    receiving_from = Vector{Union{Nothing,RemoteChannel{Channel{T}}}}(undef,length(pids))
+    receiving_from = Vector{Union{Nothing,RemoteChannel{Channel{T}}}}(nothing,length(pids))
     sending_to = Vector{Vector{RemoteChannel{Channel{T}}}}(undef,length(pids))
     for p in 1:length(pids)
-        receiving_from[p] = nothing 
         sending_to[p] = Vector{RemoteChannel{Channel{T}}}(undef,0)
     end
 
-    broadcast_communication!(pids,receiving_from, sending_to, channel_type)
+    broadcast_communication!(pids, receiving_from, sending_to, channel_type)
 
     communication = Vector{broadcast_comm{T}}(undef,length(pids))
-    for p =1:length(pids)
+    for p = 1:length(pids)
         communication[p] = broadcast_comm(
-            receiving_from[p],
-            sending_to[p]
+            receiving_from[pid_indices[p]],
+            sending_to[pid_indices[p]]
         )
     end 
     
