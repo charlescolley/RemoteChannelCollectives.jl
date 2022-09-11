@@ -221,3 +221,27 @@ function broadcast_profiled!(data,communication::C,put_timings) where {C <: broa
     return data, internal_time, put_timings, take_time
 
 end
+
+function broadcast_profiled!(data,communication::C,put_timings,put_timing_offset::Int) where {C <: broadcast_comm}
+
+    start_time = time_ns()
+
+    if communication.receiving_from === nothing 
+        take_time = 0.0
+    else
+        take_start_time = time_ns()
+        data = take!(communication.receiving_from)
+        take_time = Float64(time_ns() - take_start_time)*1e-9
+    end
+
+    for (i,channel) in enumerate(communication.sending_to)
+        put_start_time = time_ns()
+        put!(channel,data)
+        put_timings[put_timing_offset + i]= Float64(time_ns() - put_start_time)*1e-9
+    end
+
+    internal_time =  Float64(time_ns() - start_time)*1e-9
+
+    return data, internal_time, put_timings, take_time
+
+end
