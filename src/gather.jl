@@ -160,8 +160,8 @@ function gather_profiled!(my_data,all_data,take_timings,communication::C) where 
     #all_data = Vector{Matrix{Float64}}(undef,1)
     #TODO: make comm type take buffer length
     #take_timings = Vector{Float64}(undef,length(communication.receiving_from))
-    all_data[1] = my_data
     start_time = time_ns()
+    all_data[1] = my_data
     for (i,channel) in enumerate(reverse(communication.receiving_from))
                    # communication patterns come from the inverse of the broadcast code, 
                    # so receiving channels need to be reverse.  
