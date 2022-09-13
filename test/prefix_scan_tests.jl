@@ -10,8 +10,6 @@
         return ps_result, ps_profiled_result    
     end
 
-
-    #test_vals = rand(1:100,length(pids))
     function spawner(ps)
 
         communication = prefix_scan_communication(ps,0)
@@ -55,10 +53,3 @@
         @test spawner(pids)
     end 
 end 
-#=
-
-@everywhere using Revise
-] dev . 
-@everywhere using RemoteChannel_MPI
-
-=#
