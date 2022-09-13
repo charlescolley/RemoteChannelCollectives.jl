@@ -13,6 +13,8 @@ n = 1
 
 check_all_proc_batches_q = true
 
+include("all_to_all_reduce_tests.jl")
 include("broadcast_tests.jl")   
+include("gather_tests.jl")
+include("personalized_all_to_all_tests.jl")
 include("prefix_scan_tests.jl")
-include("MPI_tests.jl")
