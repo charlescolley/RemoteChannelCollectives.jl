@@ -169,41 +169,16 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         spawning_f = p-> reduce_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
     end
     
-
-
-    futures = []
-
-    # -- Start the processors -- #
-
-    spawning_time = 0.0
-    for p = 1:length(procs)
-
-        spawn_start_time = time_ns()
-        future = @spawnat procs[p] spawning_f(p)
-        spawning_time += Float64(time_ns() - spawn_start_time)*1e-9
-        push!(futures,future)
-    end
-    
-
-    all_profiling = []
-    
-    fetching_time = 0.0
-    for future in futures
-        fetch_start_time = time_ns()
-        results = fetch(future)
-        fetching_time += Float64(time_ns() - fetch_start_time)*1e-9
-
-        push!(all_profiling,results)
-                                    # expecting first arg to be data returned
-    end 
-    
-    return all_profiling, comm_setup_time, fetching_time, spawning_time
+    spawn_fetch_start_time = time_ns()
+    all_profiling  = tree_spawn_fetch(spawning_f, procs, collect(1:num_procs))
+    spawn_fetch_time = Float64(time_ns() - spawn_fetch_start_time)*1e-9
+    return all_profiling, comm_setup_time, spawn_fetch_time
 end
 
 function RCMPI_profiling_exp(method::CommType, proc_batches::Vector{Vector{Int}},mat_sizes::Vector{Int},trials::Int,output_file::Union{Nothing,String}=nothing)
 
     profiling_results = Array{Any,4}(undef,length(proc_batches),
-                                               length(mat_sizes),trials,4)
+                                               length(mat_sizes),trials,3)
                         # last dimension
     serial_comm_results = Array{Any,3}(undef,length(proc_batches),
                         length(mat_sizes),trials)
@@ -216,13 +191,12 @@ function RCMPI_profiling_exp(method::CommType, proc_batches::Vector{Vector{Int}}
                 if t == 1 
                     RCMPI_profiling_exp(method,procs,n)
                 else
-                    all_profiling, comm_setup_time, fetching_time, spawning_time = RCMPI_profiling_exp(method,procs,n)
+                    all_profiling, comm_setup_time, spawn_fetch_time  = RCMPI_profiling_exp(method,procs,n)
                     serial_comm_results[p_idx,n_idx,t-1] = RCMPI_naive_profiling_exp(method,procs,n)
 
                     profiling_results[p_idx,n_idx,t-1,1] = all_profiling
                     profiling_results[p_idx,n_idx,t-1,2] = comm_setup_time
-                    profiling_results[p_idx,n_idx,t-1,3] = fetching_time
-                    profiling_results[p_idx,n_idx,t-1,4] = spawning_time
+                    profiling_results[p_idx,n_idx,t-1,3] = spawn_fetch_time
 
                 end
             end 
@@ -236,8 +210,7 @@ function RCMPI_profiling_exp(method::CommType, proc_batches::Vector{Vector{Int}}
         output_dict = Dict([
            ("proc_profiling", profiling_results[:,:,:,1]),
            ("comm_setup_time", profiling_results[:,:,:,2]),
-           ("fetching_time", profiling_results[:,:,:,3]),
-           ("spawning_time", profiling_results[:,:,:,4]),
+           ("spawn_fetch_time", profiling_results[:,:,:,3]),
            ("serial_comm_time",serial_comm_results),
            ("proc_batches",proc_batches),
            ("mat_sizes",mat_sizes),

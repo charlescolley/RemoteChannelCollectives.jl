@@ -52,7 +52,7 @@ end
     end
     
     results = []
-    push!(results,f(args[1]))
+    push!(results,f(args[1]...))
     # fetch(future) doesn't preserve types, push! keeps results type Vector{Any}.
 
     for l = max_depth:-1:1
