@@ -321,3 +321,14 @@ function RCMPI_profiling_exp(method::CommType,test::Bool)
     RCMPI_profiling_exp(method,proc_batches,mat_sizes,trials,output_folder*output_file)
 
 end
+
+function RCMPI_profiling_exp(test::Bool) 
+
+    RCMPI_profiling_exp(Broadcast(),test) 
+    RCMPI_profiling_exp(PA2A(),test) 
+    RCMPI_profiling_exp(AllReduce(),test) 
+    RCMPI_profiling_exp(Reduce(),test) 
+    RCMPI_profiling_exp(Gather(),test) 
+    RCMPI_profiling_exp(ExclusivePrefixScan(),test) 
+
+end
