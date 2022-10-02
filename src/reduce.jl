@@ -171,14 +171,14 @@ function reduce!(reduction_f,data,communication::C) where {C <: reduce_comm}
 end
 
 
-function reduce_profiled(reduction_f, data_seed::seeded_data, communication::C) where {C <: reduce_comm}
+function reduce_profiled(data_seed::seeded_data, communication::C) where {C <: reduce_comm}
     
     seed!(data_seed.seed)
     data_gen_start_t = time_ns()
     my_data = rand(Float64,data_seed.n,data_seed.n) 
     data_gen_t = Float64(time_ns() - data_gen_start_t)*1e-9
-
-    return reduce_profiled!(reduction_f, my_data, communication)..., data_gen_t
+    reduction_f = (X,Y)-> X
+    return reduce_profiled(reduction_f, my_data, communication)..., data_gen_t
 
 end
 
