@@ -119,7 +119,7 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
 
         all_seeds = rand(UInt64, num_procs)
 
-        spawning_f = p->personalized_all_to_all_profiled(seeded_data(all_seeds[p],n),communication[p])
+        spawning_f = p->personalized_all_to_all_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
 
     elseif method === AllReduce()
     
@@ -129,7 +129,7 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
 
         all_seeds = rand(UInt64, num_procs)
 
-        spawning_f = p->all_to_all_reduce_profiled(seeded_data(all_seeds[p],n),communication[p])
+        spawning_f = p->all_to_all_reduce_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
 
 
     elseif method === Gather()
@@ -140,7 +140,7 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
 
         all_seeds = rand(UInt64, num_procs)
 
-        spawning_f = p->gather_profiled(seeded_data(all_seeds[p],n),communication[p])
+        spawning_f = p->gather_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
 
     elseif method === Broadcast()
 
@@ -148,7 +148,7 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         communication = broadcast_communication(procs,1,zeros(Float64,0,0))
         comm_setup_time = Float64(time_ns() - comm_setup_start_time)*1e-9
 
-        spawning_f = p-> p == 1 ? broadcast_profiled(seeded_data(3133,n),communication[p]) : [broadcast_profiled(nothing,communication[p])...,0.0]
+        spawning_f = p-> p == 1 ? broadcast_profiled(seeded_data(3133,n),communication[p])[2:end] : [broadcast_profiled(nothing,communication[p])[2:end]...,0.0]
 
     elseif method === ExclusivePrefixScan()
 
@@ -157,7 +157,7 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         comm_setup_time = Float64(time_ns() - comm_setup_start_time)*1e-9
 
         all_seeds = rand(UInt64, num_procs)
-        spawning_f = p-> prefix_scan_profiled(seeded_data(all_seeds[p],n),communication[p])
+        spawning_f = p-> prefix_scan_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
     elseif method === Reduce() 
 
         reduce_pid = 1
@@ -166,7 +166,7 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         comm_setup_time = Float64(time_ns() - comm_setup_start_time)*1e-9
 
         all_seeds = rand(UInt64, num_procs)
-        spawning_f = p-> reduce_profiled(seeded_data(all_seeds[p],n),communication[p])
+        spawning_f = p-> reduce_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
     end
     
 
@@ -193,7 +193,7 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         results = fetch(future)
         fetching_time += Float64(time_ns() - fetch_start_time)*1e-9
 
-        push!(all_profiling,results[2:end])
+        push!(all_profiling,results)
                                     # expecting first arg to be data returned
     end 
     
