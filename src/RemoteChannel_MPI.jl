@@ -34,4 +34,6 @@ export prefix_scan_comm, powot_batch_prefix_scan_comm, prefix_scan_communication
 
 export seeded_data
 
+export tree_spawn_fetch
+
 end # module end 

@@ -21,3 +21,16 @@ function create_test_parameters(pids,check_all_proc_batches_q,check_all_collecti
     end 
     return exp_parameters
 end 
+
+function create_test_parameters(pids,check_all_proc_batches_q)
+    exp_parameters = [] 
+
+    if check_all_proc_batches_q  
+        for p = 2:length(pids)
+            push!(exp_parameters,pids[1:p])
+        end 
+    else 
+        push!(exp_parameters,pids)
+    end 
+    return exp_parameters
+end 

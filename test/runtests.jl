@@ -15,6 +15,7 @@ check_all_proc_batches_q = true
 check_all_collection_pids_q = true
 
 include("helpers.jl")
+include("shared_mpi_tests.jl")
 
 include("all_to_all_reduce_tests.jl")
 include("broadcast_tests.jl")   
