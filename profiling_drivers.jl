@@ -1,17 +1,39 @@
 @everywhere using RemoteChannel_MPI
-
 @everywhere using Random: seed!
+
+@everywhere abstract type CommType end
+
+@everywhere struct PA2A <: CommType end
+@everywhere struct AllReduce <: CommType end 
+@everywhere struct Reduce <: CommType end 
+@everywhere struct Gather <: CommType end
+@everywhere struct Broadcast <: CommType end
+@everywhere struct ExclusivePrefixScan <: CommType end
+
 using JSON
 using Base.Filesystem: mkpath, ispath 
 
-abstract type CommType end
+@everywhere function null_program(method::CommType,args...)
+    if method === PA2A() || method === Broadcast()
 
-struct PA2A <: CommType end
-struct AllReduce <: CommType end 
-struct Reduce <: CommType end 
-struct Gather <: CommType end
-struct Broadcast <: CommType end
-struct ExclusivePrefixScan <: CommType end
+        return time_ns()
+
+    elseif method === AllReduce() || method === Reduce() || method === ExclusivePrefixScan()
+
+        return 0.0 
+
+    elseif method === Gather()
+        
+        seed, n = args
+
+        seed!(seed)
+        mat_gen_start_t = time_ns()
+        X = rand(Float64,n,n)
+        mat_gen_t = Float64(time_ns() - mat_gen_start_t)*1e-9
+        return X, mat_gen_t
+
+    end 
+end 
 
 """
 This profiling assumes the user wants to generate the final data on a master 
@@ -26,10 +48,6 @@ function RCMPI_naive_profiling_exp(method::CommType, procs::Vector{Int},n::Int =
 
     if method === PA2A()
 
-        @everywhere function null_program(data)
-            return time_ns()
-        end
-
         all_data = Matrix{Matrix{Float64}}(undef,num_procs,num_procs)
         for j = 1:num_procs
             for i = 1:num_procs
@@ -37,33 +55,15 @@ function RCMPI_naive_profiling_exp(method::CommType, procs::Vector{Int},n::Int =
             end
         end
 
-        spawning_f = p->null_program(all_data[p,:]) 
-
     elseif method === AllReduce() || method === Reduce() || method === ExclusivePrefixScan()
         return 0.0 #this comparison point doesn't make sense 
     elseif method === Gather()
 
-        @everywhere function null_program(seed,n)
-            #                                  passing n in is easier
-            #                                  than working with @everywhere
-            seed!(seed)
-            mat_gen_start_t = time_ns()
-            X = rand(Float64,n,n)
-            mat_gen_t = Float64(time_ns() - mat_gen_start_t)*1e-9
-            return X, mat_gen_t
-        end
-
-        seeds = rand(UInt64, num_procs)
-        spawning_f = p->null_program(seeds[p],n)
+        all_seeds = rand(UInt64, num_procs)
 
     elseif method === Broadcast()
 
-        @everywhere function null_program(data)
-            return time_ns()
-        end
-
         data = rand(Float64,n,n)
-        spawning_f = p-> null_program(data)
 
     end
     
@@ -79,9 +79,25 @@ function RCMPI_naive_profiling_exp(method::CommType, procs::Vector{Int},n::Int =
    
     for p = 1:length(procs)
 
-        spawn_start_time = time_ns()
-        future = @spawnat procs[p] spawning_f(p)
-        spawning_time += Float64(time_ns() - spawn_start_time)*1e-9
+
+        if method === PA2A()
+            spawn_start_time = time_ns()
+            future = @spawnat procs[p] null_program(method,all_data[:,p])
+            spawning_time += Float64(time_ns() - spawn_start_time)*1e-9
+        elseif method === Broadcast() 
+            spawn_start_time = time_ns()
+            future = @spawnat procs[p] null_program(method,data)
+            spawning_time += Float64(time_ns() - spawn_start_time)*1e-9
+        elseif method === Gather() 
+            spawn_start_time = time_ns()
+            future = @spawnat procs[p] null_program(method,all_seeds[p],n)
+            spawning_time += Float64(time_ns() - spawn_start_time)*1e-9
+        else
+            spawn_start_time = time_ns()
+            future = @spawnat procs[p] null_program(method)
+            spawning_time += Float64(time_ns() - spawn_start_time)*1e-9
+        end 
+
         push!(futures,future)
 
     end
@@ -100,10 +116,57 @@ function RCMPI_naive_profiling_exp(method::CommType, procs::Vector{Int},n::Int =
     end
     
     if method === Gather()
-        return (fetching_time + spawning_time) - maximum(mat_gen_ts)
+        return (fetching_time + spawning_time)# - maximum(mat_gen_ts)
     else 
         return fetching_time + spawning_time
     end
+end 
+
+@everywhere function spawning_function(method::CommType, n::Int, comm::T,args...) where {T <: RemoteChannel_MPI.Communication}
+        
+    if method === PA2A()
+            
+        seed = args[1]
+        output = personalized_all_to_all_profiled(seeded_data(seed,n),comm)
+
+    elseif method === AllReduce()
+
+        seed = args[1]
+        output = all_to_all_reduce_profiled(seeded_data(seed,n),comm)
+
+
+    elseif method === Gather()
+
+        seed = args[1]
+        output = gather_profiled(seeded_data(seed,n),comm)
+
+    elseif method === Broadcast()
+
+        b_castseed = 3133
+        if comm.receiving_from === nothing
+            output = broadcast_profiled(seeded_data(b_castseed,n),comm)
+        else
+            output = broadcast_profiled(nothing,comm), 0.0 
+                                                    # these procs don't 
+                                                    # generate messages
+        end 
+    elseif method === ExclusivePrefixScan()
+
+        seed = args[1]
+        output = prefix_scan_profiled(seeded_data(seed,n),comm)
+
+
+    elseif method === Reduce()
+
+        seed = args[1]
+        output = reduce_profiled(seeded_data(seed,n),comm)
+        
+    else 
+
+        throw(DomainError(method,"Unimplemented"))
+    end 
+    return output[2:end]
+            # don't return the messages computed. 
 end 
 
 function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
@@ -118,8 +181,10 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         comm_setup_time = Float64(time_ns() - comm_setup_start_time)*1e-9
 
         all_seeds = rand(UInt64, num_procs)
-
-        spawning_f = p->personalized_all_to_all_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
+        inputs = Vector{Tuple{PA2A,Int,personalized_all_to_all_comm{Matrix{Float64}},UInt}}(undef,num_procs)
+        for p =1:num_procs
+            inputs[p] = (PA2A(),n,communication[p],all_seeds[p])
+        end             #TODO: give tree_spawn_fetch a shared args parameter. 
 
     elseif method === AllReduce()
     
@@ -129,7 +194,10 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
 
         all_seeds = rand(UInt64, num_procs)
 
-        spawning_f = p->all_to_all_reduce_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
+        inputs = Vector{Tuple{AllReduce,Int,all_to_all_reduce_comm{Matrix{Float64}},UInt}}(undef,num_procs)
+        for p =1:num_procs
+            inputs[p] = (AllReduce(),n,communication[p],all_seeds[p])
+        end
 
 
     elseif method === Gather()
@@ -139,8 +207,10 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         comm_setup_time = Float64(time_ns() - comm_setup_start_time)*1e-9
 
         all_seeds = rand(UInt64, num_procs)
-
-        spawning_f = p->gather_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
+        inputs = Vector{Tuple{Gather,Int,gather_comm{Matrix{Float64}},UInt}}(undef,num_procs)
+        for p =1:num_procs
+            inputs[p] = (Gather(),n,communication[p],all_seeds[p])
+        end
 
     elseif method === Broadcast()
 
@@ -148,7 +218,10 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         communication = broadcast_communication(procs,1,zeros(Float64,0,0))
         comm_setup_time = Float64(time_ns() - comm_setup_start_time)*1e-9
 
-        spawning_f = p-> p == 1 ? broadcast_profiled(seeded_data(3133,n),communication[p])[2:end] : [broadcast_profiled(nothing,communication[p])[2:end]...,0.0]
+        inputs = Vector{Tuple{Broadcast,Int,broadcast_comm{Matrix{Float64}}}}(undef,num_procs)
+        for p =1:num_procs
+            inputs[p] = (Broadcast(),n,communication[p])
+        end
 
     elseif method === ExclusivePrefixScan()
 
@@ -157,7 +230,11 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         comm_setup_time = Float64(time_ns() - comm_setup_start_time)*1e-9
 
         all_seeds = rand(UInt64, num_procs)
-        spawning_f = p-> prefix_scan_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
+        inputs = Vector{Tuple{ExclusivePrefixScan,Int,prefix_scan_comm{Matrix{Float64}},UInt}}(undef,num_procs)
+        for p =1:num_procs
+            inputs[p] = (ExclusivePrefixScan(),n,communication[p],all_seeds[p])
+        end
+
     elseif method === Reduce() 
 
         reduce_pid = 1
@@ -166,11 +243,18 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
         comm_setup_time = Float64(time_ns() - comm_setup_start_time)*1e-9
 
         all_seeds = rand(UInt64, num_procs)
-        spawning_f = p-> reduce_profiled(seeded_data(all_seeds[p],n),communication[p])[2:end]
+        inputs = Vector{Tuple{Reduce,Int,reduce_comm{Matrix{Float64}},UInt}}(undef,num_procs)
+        for p =1:num_procs
+            inputs[p] = (Reduce(),n,communication[p],all_seeds[p])
+        end
+
     end
     
+    
+    
+
     spawn_fetch_start_time = time_ns()
-    all_profiling  = tree_spawn_fetch(spawning_f, procs, collect(1:num_procs))
+    all_profiling  = tree_spawn_fetch(spawning_function, procs, inputs)
     spawn_fetch_time = Float64(time_ns() - spawn_fetch_start_time)*1e-9
     return all_profiling, comm_setup_time, spawn_fetch_time
 end
