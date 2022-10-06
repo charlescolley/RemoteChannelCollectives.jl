@@ -33,6 +33,18 @@ function PowOT_breakdown(num_procs::Int)
     return PowOT_offsets
 end
 
+function num_zeros_in_bstr(x::Union{Float64,Int}) 
+    max_base2 = Int(ceil(log2(x)))
+    bstr = bitstring(x)[end- max_base2 + 1:end]
+    return sum([c == '0' ? 1 : 0  for c in bstr])
+end #TODO: this can be improved 
+
+
+function hamming_weight(x::Union{Float64,Int}) 
+    bstr = bitstring(x)[end-Int(ceil(log2(x))) + 1:end]
+    return sum([c == '1' ? 1 : 0  for c in bstr])
+end
+
 
 #
 #    Spawn Fetch Routines

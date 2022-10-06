@@ -1,4 +1,4 @@
-@testset "Shared MPI" begin 
+@testset "Shared" begin 
 
     @testset "PowOT_breakdown" begin 
 
@@ -19,7 +19,7 @@
             return all_powers_of_two && first_idx_is_one
         end 
 
-        @test all([test_offsets(RemoteChannel_MPI.PowOT_breakdown(proc_counts[t])) for t =1:trials])
+        @test all([test_offsets(RemoteChannelCollectives.PowOT_breakdown(proc_counts[t])) for t =1:trials])
     end 
 
 

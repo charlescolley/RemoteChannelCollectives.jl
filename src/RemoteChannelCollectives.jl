@@ -1,4 +1,4 @@
-module RemoteChannel_MPI
+module RemoteChannelCollectives
 
 using Distributed
 
@@ -9,7 +9,7 @@ struct seeded_data
      n::Int
 end #used as a flag to indicate profiling routines to generate data locally.
 
-include("shared_mpi.jl")
+include("shared.jl")
 
 include("all_to_all_reduce.jl")
 include("broadcast.jl")
@@ -19,6 +19,7 @@ include("personalized_all_to_all.jl")
 include("prefix_scan.jl")
 
 using Random: seed!
+export Communication
 
 using ..Base: broadcast
      # exporting broadcast triggers a

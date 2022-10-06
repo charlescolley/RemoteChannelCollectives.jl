@@ -6,8 +6,8 @@ A package for tree based communication using Distributed.jl's [RemoteChannel](ht
 
 ```
 # in ']' mode
-add https://github.com/charlescolley/RemoteChannel_MPI.jl
-test RemoteChannel_MPI
+add https://github.com/charlescolley/RemoteChannelCollectives.jl
+test RemoteChannelCollectives
 ```
 
 ## How to Use
@@ -59,7 +59,7 @@ More examples can be found in `profiling_drivers.jl` within the project's top fo
 
 ```julia
 @everywhere using Random:seed!
-@everywhere using RemoteChannel_MPI
+@everywhere using RemoteChannelCollectives
 
 @everywhere function array_sum(data_seed::UInt, comm::C) where {C <: reduce_comm}
     seed!(data_seed)

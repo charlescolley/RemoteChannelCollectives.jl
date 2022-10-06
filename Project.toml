@@ -1,4 +1,4 @@
-name = "RemoteChannel_MPI"
+name = "RemoteChannelCollectives"
 uuid = "a266ee27-82b6-4f16-8ad1-7571abaf7137"
 authors = ["Charles Colley <ccolley@purdue.edu>"]
 version = "0.0.0"

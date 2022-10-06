@@ -1,4 +1,4 @@
-@everywhere using RemoteChannel_MPI
+@everywhere using RemoteChannelCollectives
 @everywhere using Random: seed!
 
 @everywhere abstract type CommType end
@@ -40,7 +40,7 @@ This profiling assumes the user wants to generate the final data on a master
 process and communicate the final data assignment in serial. These programs 
 emulate development which just uses the most naive approach possible. 
 """
-function RCMPI_naive_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
+function RCC_naive_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
   
     num_procs = length(procs)
 
@@ -122,7 +122,7 @@ function RCMPI_naive_profiling_exp(method::CommType, procs::Vector{Int},n::Int =
     end
 end 
 
-@everywhere function spawning_function(method::CommType, n::Int, comm::T,args...) where {T <: RemoteChannel_MPI.Communication}
+@everywhere function spawning_function(method::CommType, n::Int, comm::T,args...) where {T <: Communication}
         
     if method === PA2A()
             
@@ -169,7 +169,7 @@ end
             # don't return the messages computed. 
 end 
 
-function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
+function RCC_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
 
     num_procs = length(procs)
     seed!(3131)
@@ -259,7 +259,7 @@ function RCMPI_profiling_exp(method::CommType, procs::Vector{Int},n::Int = 10)
     return all_profiling, comm_setup_time, spawn_fetch_time
 end
 
-function RCMPI_profiling_exp(method::CommType, proc_batches::Vector{Vector{Int}},mat_sizes::Vector{Int},trials::Int,output_file::Union{Nothing,String}=nothing)
+function RCC_profiling_exp(method::CommType, proc_batches::Vector{Vector{Int}},mat_sizes::Vector{Int},trials::Int,output_file::Union{Nothing,String}=nothing)
 
     profiling_results = Array{Any,4}(undef,length(proc_batches),
                                                length(mat_sizes),trials,3)
@@ -273,10 +273,10 @@ function RCMPI_profiling_exp(method::CommType, proc_batches::Vector{Vector{Int}}
                 
                 #TODO: should we throw away more trials to address cold start effects? 
                 if t == 1 
-                    RCMPI_profiling_exp(method,procs,n)
+                    RCC_profiling_exp(method,procs,n)
                 else
-                    all_profiling, comm_setup_time, spawn_fetch_time  = RCMPI_profiling_exp(method,procs,n)
-                    serial_comm_results[p_idx,n_idx,t-1] = RCMPI_naive_profiling_exp(method,procs,n)
+                    all_profiling, comm_setup_time, spawn_fetch_time  = RCC_profiling_exp(method,procs,n)
+                    serial_comm_results[p_idx,n_idx,t-1] = RCC_naive_profiling_exp(method,procs,n)
 
                     profiling_results[p_idx,n_idx,t-1,1] = all_profiling
                     profiling_results[p_idx,n_idx,t-1,2] = comm_setup_time
@@ -310,8 +310,7 @@ function RCMPI_profiling_exp(method::CommType, proc_batches::Vector{Vector{Int}}
         return profiling_results
     end
 end
-
-function RCMPI_profiling_exp(method::CommType,test::Bool) 
+function RCC_profiling_exp(method::CommType,test::Bool) 
     # experiment driver for tests 
 
     if test
@@ -340,7 +339,7 @@ function RCMPI_profiling_exp(method::CommType,test::Bool)
         comm_type_str = "Reduce"
     end #TODO: can we do this by defining string(X::CommType)?
 
-    output_file = "RCMPI_$(comm_type_str)_numProcs:$(batch_size_range)_n:$(mat_sizes)_trials:$(trials)_"
+    output_file = "RCC_$(comm_type_str)_numProcs:$(batch_size_range)_n:$(mat_sizes)_trials:$(trials)_"
     output_folder = "./"
 
     #  -- augment filename with remaining parameters -- #
@@ -375,17 +374,17 @@ function RCMPI_profiling_exp(method::CommType,test::Bool)
     #  -- Run Trials -- # 
 
     println("starting experiment:\n  $(output_folder*output_file)")
-    RCMPI_profiling_exp(method,proc_batches,mat_sizes,trials,output_folder*output_file)
+    RCC_profiling_exp(method,proc_batches,mat_sizes,trials,output_folder*output_file)
 
 end
 
-function RCMPI_profiling_exp(test::Bool) 
+function RCC_profiling_exp(test::Bool) 
 
-    RCMPI_profiling_exp(Broadcast(),test) 
-    RCMPI_profiling_exp(PA2A(),test) 
-    RCMPI_profiling_exp(AllReduce(),test) 
-    RCMPI_profiling_exp(Reduce(),test) 
-    RCMPI_profiling_exp(Gather(),test) 
-    RCMPI_profiling_exp(ExclusivePrefixScan(),test) 
+    RCC_profiling_exp(Broadcast(),test) 
+    RCC_profiling_exp(PA2A(),test) 
+    RCC_profiling_exp(AllReduce(),test) 
+    RCC_profiling_exp(Reduce(),test) 
+    RCC_profiling_exp(Gather(),test) 
+    RCC_profiling_exp(ExclusivePrefixScan(),test) 
 
 end
