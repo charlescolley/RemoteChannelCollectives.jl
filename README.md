@@ -1,4 +1,4 @@
-# RemoteChannelCommunication.jl
+# RemoteChannelCollectives.jl
 
 A package for tree based communication using Distributed.jl's [RemoteChannel](https://docs.julialang.org/en/v1/stdlib/Distributed/#Distributed.RemoteChannel). Distributed.jl uses "one-sided" communication, but SPDM program's send/receive can be emulated by putting to/taking from RemoteChannels. [Collective operations](https://en.wikipedia.org/wiki/Collective_operation) needed are prebuilt and passed to SPMD programs which are spawned by the spawning process (pid). 
 
@@ -20,9 +20,9 @@ Using parallel array summation as an example, we want to sum a series of numbers
     seed!(data_seed)
     reduction = (x,y)-> x + y 
     local_result = reduce(reduction,sum(rand(Float64,100)),comm)
-   if comm.sending_to === nothing
-         return local_result
-     end
+    if comm.sending_to === nothing
+        return local_result
+    end
 end
 ```
 
@@ -38,6 +38,8 @@ RemoteChannels are parameterized by the type of the message to be exchanged betw
 reduce_pid = 1
 communication = reduce_communication(pids,reduce_pid,0.0)
 ```
+RemoteChannels are parameterized by their message type. We inform the `..._communication` function of the message type by passing in a small instance of a message. Here we use a 0.0 to indicate we want to send floats. In profiling_drivers.jl, we use zeros(Float64,0,0) to indicate matrices of Floats. 
+
 NOTE: If a program needs to run two reductions with different types, multiple instances of `reduce_comm` need to be created and passed into the spawned programs. 
 
 `reduce_communication` returns an array with each `reduce_comm{T}` needed for each process. Each of the different communication operations have their own `..._communication` function. These functions take in the list of processors, and by default, treat the first process in the list as the root node in the tree-based communication. `communication[p]` is the communication which needed to be passed to the `p`th process, and programs are spawned with 
@@ -53,6 +55,9 @@ end
 ```
 
 More examples can be found in `profiling_drivers.jl` within the project's top folder.
+
+NOTE: In this example we used a for loop to spawn the processors, but there is also `tree_spawn_fetch` which uses a scatter and gather template to spawn processors, run the algorithm, and fetch the results. This is primarily used in our profiling routines as we want profiling results from each of the processors, but this method wouldn't be recommended for collecting large messages back to the spawning processor. 
+
 <details>
 
 <summary>TLDR, just show me a full program.</summary>
@@ -66,14 +71,13 @@ More examples can be found in `profiling_drivers.jl` within the project's top fo
     reduction = (x,y)-> x + y 
     local_result = reduce(reduction,sum(rand(Float64,100)),comm)
     if comm.sending_to === nothing
-	    return local_result
-	end
+        return local_result
+    end
 end
 
+pids = workers() 
 reduce_pid = 1
 communication = reduce_communication(pids,reduce_pid,0.0)
-
-pids = workers() 
 seeds = rand(UInt,length(pids))
 
 futures = []
